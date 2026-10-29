@@ -14,6 +14,10 @@ class UnsupportedBackend implements DiscordBackend {
 		this.target = target == null ? detectTarget() : target;
 	}
 
+	public function capabilities():DiscordCapabilities {
+		return DiscordCapabilities.none();
+	}
+
 	public function initialize(applicationId:String):DiscordResult {
 		return Rejected(unsupportedError());
 	}

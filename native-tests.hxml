@@ -1,0 +1,9 @@
+-cp src
+-cp tests/native
+-lib hxcpp
+-D hxdiscordsocial_native
+-D windows
+-D HXCPP_M64
+-main NativeMain
+-cpp build/native-tests
+

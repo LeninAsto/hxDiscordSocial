@@ -9,9 +9,9 @@
     "hxcpp"
   ],
   "description": "Modern, backend-driven Discord Social SDK integration for Haxe.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "classPath": "src/",
-  "releasenote": "Initial target-independent API with fake and unsupported backends.",
+  "releasenote": "Windows x64 Discord Social SDK backend with a tested C ABI bridge.",
   "contributors": [
     "LeninAsto"
   ],

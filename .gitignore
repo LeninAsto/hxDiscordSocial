@@ -1,6 +1,7 @@
 # Haxe / native build output
 bin/
 build/
+native/windows/smoke/build/
 export/
 .haxelib/
 .tmp/

@@ -7,6 +7,7 @@ class Discord {
 	public static var state(get, never):DiscordState;
 	public static var applicationId(get, never):Null<String>;
 	public static var desiredPresence(get, never):Null<Presence>;
+	public static var capabilities(get, never):DiscordCapabilities;
 
 	public static function useClient(value:DiscordClient):Void {
 		if (value == null)
@@ -46,4 +47,7 @@ class Discord {
 
 	static inline function get_desiredPresence():Null<Presence>
 		return client.desiredPresence;
+
+	static inline function get_capabilities():DiscordCapabilities
+		return client.capabilities;
 }

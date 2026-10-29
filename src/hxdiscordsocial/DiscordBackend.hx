@@ -5,6 +5,7 @@ package hxdiscordsocial;
  * they expose completed work through poll().
  */
 interface DiscordBackend {
+	public function capabilities():DiscordCapabilities;
 	public function initialize(applicationId:String):DiscordResult;
 	public function setPresence(presence:Presence):DiscordResult;
 	public function clearPresence():DiscordResult;

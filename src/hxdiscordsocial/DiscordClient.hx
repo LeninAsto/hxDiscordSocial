@@ -6,11 +6,12 @@ import hxdiscordsocial.DiscordResult.DiscordResultTools;
 
 /** Backend-independent Discord client with main-thread event dispatch. */
 class DiscordClient {
-	static inline final UINT64_MAX = "18446744073709551615";
+	static inline final MAX_UNSIGNED_64_DECIMAL = "18446744073709551615";
 
 	public var state(default, null):DiscordState = Idle;
 	public var applicationId(default, null):Null<String>;
 	public var desiredPresence(default, null):Null<Presence>;
+	public var capabilities(get, never):DiscordCapabilities;
 
 	final backend:DiscordBackend;
 	final listeners:Array<DiscordEventListener> = [];
@@ -22,6 +23,10 @@ class DiscordClient {
 
 	public function new(?backend:DiscordBackend) {
 		this.backend = backend == null ? BackendFactory.create() : backend;
+	}
+
+	inline function get_capabilities():DiscordCapabilities {
+		return backend.capabilities();
 	}
 
 	public function addListener(listener:DiscordEventListener):Void {
@@ -249,7 +254,8 @@ class DiscordClient {
 			return new DiscordError(InvalidApplicationId, "Application ID must be greater than zero");
 
 		var normalized = value.substr(firstNonZero);
-		if (normalized.length > UINT64_MAX.length || (normalized.length == UINT64_MAX.length && normalized > UINT64_MAX))
+		if (normalized.length > MAX_UNSIGNED_64_DECIMAL.length
+			|| (normalized.length == MAX_UNSIGNED_64_DECIMAL.length && Reflect.compare(normalized, MAX_UNSIGNED_64_DECIMAL) > 0))
 			return new DiscordError(InvalidApplicationId, "Application ID exceeds an unsigned 64-bit integer");
 
 		return null;

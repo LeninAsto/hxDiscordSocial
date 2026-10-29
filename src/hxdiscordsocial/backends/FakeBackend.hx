@@ -28,6 +28,10 @@ class FakeBackend implements DiscordBackend {
 		this.autoComplete = autoComplete;
 	}
 
+	public function capabilities():DiscordCapabilities {
+		return DiscordCapabilities.presenceOnly();
+	}
+
 	public function initialize(applicationId:String):DiscordResult {
 		initializeCalls++;
 		initialized = true;

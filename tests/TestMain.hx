@@ -1,13 +1,20 @@
 package;
 
 import haxe.Int64;
+import hxdiscordsocial.ActivityPlatform;
+import hxdiscordsocial.ActivityType;
 import hxdiscordsocial.Discord;
 import hxdiscordsocial.DiscordClient;
 import hxdiscordsocial.DiscordError.DiscordErrorCode;
 import hxdiscordsocial.DiscordEvent;
+import hxdiscordsocial.DiscordFeature;
 import hxdiscordsocial.DiscordResult;
 import hxdiscordsocial.DiscordState;
+import hxdiscordsocial.PartyPrivacy;
 import hxdiscordsocial.Presence;
+import hxdiscordsocial.PresenceButton;
+import hxdiscordsocial.PresenceParty;
+import hxdiscordsocial.StatusDisplayType;
 import hxdiscordsocial.backends.FakeBackend;
 import hxdiscordsocial.backends.UnsupportedBackend;
 
@@ -16,6 +23,8 @@ class TestMain {
 
 	static function main():Void {
 		testApplicationIdValidation();
+		testModernPresenceModel();
+		testCapabilities();
 		testUnsupportedBackend();
 		testLifecycleAndInt64();
 		testDeduplicationAndCoalescing();
@@ -24,6 +33,57 @@ class TestMain {
 		testShutdownAndReinitialize();
 		testStaticFacade();
 		Sys.println('PASS: $assertions assertions');
+	}
+
+	static function testModernPresenceModel():Void {
+		var platforms = ActivityPlatform.Desktop | ActivityPlatform.Android;
+		var presence = new Presence({
+			name: "hxDiscordSocial",
+			type: ActivityType.Competing,
+			statusDisplayType: StatusDisplayType.Details,
+			details: "Modern API",
+			detailsUrl: "https://example.com/details",
+			state: "Testing everything",
+			stateUrl: "https://example.com/state",
+			largeImage: "large",
+			largeText: "Large asset",
+			largeUrl: "https://example.com/large",
+			smallImage: "small",
+			smallText: "Small asset",
+			smallUrl: "https://example.com/small",
+			inviteCoverImage: "cover",
+			startTimestamp: Int64.parseString("2147483648"),
+			endTimestamp: Int64.parseString("4147483648"),
+			buttons: [
+				new PresenceButton("Docs", "https://example.com/docs"),
+				new PresenceButton("Play", "https://example.com/play")
+			],
+			party: new PresenceParty("party-1", 2, 8, PartyPrivacy.Public),
+			joinSecret: "join-secret",
+			supportedPlatforms: platforms
+		});
+		var copy = presence.copy();
+		assertTrue(copy.equals(presence), "modern presence survives deep copy");
+		assertTrue(copy.buttons != presence.buttons, "button arrays are copied");
+		assertTrue(copy.party != presence.party, "party is copied");
+		assertTrue(platforms.contains(ActivityPlatform.Desktop), "desktop platform flag");
+		assertTrue(platforms.contains(ActivityPlatform.Android), "Android platform flag");
+		assertThrows(() -> new Presence({
+			buttons: [
+				new PresenceButton("One", "https://example.com/1"),
+				new PresenceButton("Two", "https://example.com/2"),
+				new PresenceButton("Three", "https://example.com/3")
+			]
+		}), "more than two buttons rejected");
+		assertThrows(() -> new PresenceParty("bad", 3, 2), "invalid party size rejected");
+	}
+
+	static function testCapabilities():Void {
+		var supported = new DiscordClient(new FakeBackend());
+		assertTrue(supported.capabilities.supports(DiscordFeature.RichPresence), "fake backend declares presence support");
+		assertTrue(!supported.capabilities.supports(DiscordFeature.Voice), "unimplemented voice is explicit");
+		var unsupported = new DiscordClient(new UnsupportedBackend("TestOS"));
+		assertTrue(!unsupported.capabilities.supports(DiscordFeature.RichPresence), "unsupported backend declares no features");
 	}
 
 	static function testApplicationIdValidation():Void {
@@ -211,5 +271,15 @@ class TestMain {
 		assertions++;
 		if (expected != actual)
 			throw '$message: expected $expected, got $actual';
+	}
+
+	static function assertThrows(action:() -> Void, message:String):Void {
+		assertions++;
+		try {
+			action();
+		} catch (_:Dynamic) {
+			return;
+		}
+		throw message;
 	}
 }
