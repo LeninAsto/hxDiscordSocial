@@ -1,0 +1,23 @@
+# Haxe / native build output
+bin/
+build/
+export/
+.haxelib/
+.tmp/
+*.ndll
+*.dll
+*.lib
+*.so
+*.aar
+
+# Discord Social SDK is proprietary and must stay local.
+vendor/
+discord_social_sdk/
+
+# Editor / OS files
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
