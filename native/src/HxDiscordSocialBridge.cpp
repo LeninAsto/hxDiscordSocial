@@ -12,6 +12,25 @@
 #include <string>
 #include <utility>
 
+#if defined(_WIN32) && !defined(__MINGW32__)
+#include <windows.h>
+#include <delayimp.h>
+
+FARPROC WINAPI hxDiscordSocialDelayHook(unsigned notification,
+                                        PDelayLoadInfo info) {
+    if (notification == dliNotePreLoadLibrary && info != nullptr
+        && info->szDll != nullptr
+        && _stricmp(info->szDll, "discord_partner_sdk.dll") == 0) {
+        return reinterpret_cast<FARPROC>(LoadLibraryW(L"discord.dll"));
+    }
+    return nullptr;
+}
+
+extern "C" {
+const PfnDliHook __pfnDliNotifyHook2 = hxDiscordSocialDelayHook;
+}
+#endif
+
 namespace {
 struct BridgeEvent {
     int type = HDS_EVENT_NONE;
@@ -129,12 +148,12 @@ bool hds_set_presence(const char* name,
         setLastError("Presence timestamps cannot be negative");
         return false;
     }
-	if (activity_type < 0 || activity_type > 6
-		|| status_display_type < -1 || status_display_type > 2
-		|| party_privacy < 0 || party_privacy > 1) {
-		setLastError("Presence contains an invalid enum value");
-		return false;
-	}
+    if (activity_type < 0 || activity_type > 6
+        || status_display_type < -1 || status_display_type > 2
+        || party_privacy < 0 || party_privacy > 1) {
+        setLastError("Presence contains an invalid enum value");
+        return false;
+    }
 
     try {
         discordpp::Activity activity;
@@ -142,10 +161,10 @@ bool hds_set_presence(const char* name,
         if (const auto value = optionalString(name)) {
             activity.SetName(*value);
         }
-		if (status_display_type >= 0) {
-			activity.SetStatusDisplayType(
-			  static_cast<discordpp::StatusDisplayTypes>(status_display_type));
-		}
+        if (status_display_type >= 0) {
+            activity.SetStatusDisplayType(
+              static_cast<discordpp::StatusDisplayTypes>(status_display_type));
+        }
         activity.SetDetails(optionalString(details));
         activity.SetDetailsUrl(optionalString(details_url));
         activity.SetState(optionalString(state));
@@ -182,34 +201,36 @@ bool hds_set_presence(const char* name,
             activity.SetTimestamps(timestamps);
         }
 
-		const auto addButton = [&activity](const char* label, const char* url) {
-			if (label != nullptr && label[0] != '\0' && url != nullptr && url[0] != '\0') {
-				discordpp::ActivityButton button;
-				button.SetLabel(label);
-				button.SetUrl(url);
-				activity.AddButton(std::move(button));
-			}
-		};
-		addButton(button_one_label, button_one_url);
-		addButton(button_two_label, button_two_url);
+        const auto addButton = [&activity](const char* label, const char* url) {
+            if (label != nullptr && label[0] != '\0' && url != nullptr
+                && url[0] != '\0') {
+                discordpp::ActivityButton button;
+                button.SetLabel(label);
+                button.SetUrl(url);
+                activity.AddButton(std::move(button));
+            }
+        };
+        addButton(button_one_label, button_one_url);
+        addButton(button_two_label, button_two_url);
 
-		if (party_id != nullptr && party_id[0] != '\0') {
-			discordpp::ActivityParty party;
-			party.SetId(party_id);
-			party.SetCurrentSize(party_current_size);
-			party.SetMaxSize(party_max_size);
-			party.SetPrivacy(static_cast<discordpp::ActivityPartyPrivacy>(party_privacy));
-			activity.SetParty(std::move(party));
-		}
-		if (join_secret != nullptr && join_secret[0] != '\0') {
-			discordpp::ActivitySecrets secrets;
-			secrets.SetJoin(join_secret);
-			activity.SetSecrets(std::move(secrets));
-		}
-		if (supported_platforms != 0) {
-			activity.SetSupportedPlatforms(
-			  static_cast<discordpp::ActivityGamePlatforms>(supported_platforms));
-		}
+        if (party_id != nullptr && party_id[0] != '\0') {
+            discordpp::ActivityParty party;
+            party.SetId(party_id);
+            party.SetCurrentSize(party_current_size);
+            party.SetMaxSize(party_max_size);
+            party.SetPrivacy(
+              static_cast<discordpp::ActivityPartyPrivacy>(party_privacy));
+            activity.SetParty(std::move(party));
+        }
+        if (join_secret != nullptr && join_secret[0] != '\0') {
+            discordpp::ActivitySecrets secrets;
+            secrets.SetJoin(join_secret);
+            activity.SetSecrets(std::move(secrets));
+        }
+        if (supported_platforms != 0) {
+            activity.SetSupportedPlatforms(
+              static_cast<discordpp::ActivityGamePlatforms>(supported_platforms));
+        }
 
         const auto generation = g_generation.load();
         g_client->UpdateRichPresence(

@@ -5,6 +5,7 @@ import haxe.io.Path;
 import haxe.macro.Context;
 import haxe.macro.Expr;
 import sys.FileSystem;
+import sys.io.File;
 
 /** Resolves the local proprietary SDK without adding it to the repository. */
 class NativeBuild {
@@ -19,12 +20,16 @@ class NativeBuild {
 		var includeDir = Path.directory(resolved("native/include/HxDiscordSocialBridge.h"));
 		var sdkHeader = Path.join([sdkDir, "include", "discordpp.h"]);
 		var importLibrary = Path.join([sdkDir, "lib", "release", "discord_partner_sdk.lib"]);
-		var runtimeDir = Path.join([sdkDir, "bin", "release"]);
-		for (required in [sdkHeader, importLibrary, Path.join([runtimeDir, "discord_partner_sdk.dll"])]) {
+		var runtimeSource = Path.join([sdkDir, "bin", "release", "discord_partner_sdk.dll"]);
+		for (required in [sdkHeader, importLibrary, runtimeSource]) {
 			if (!FileSystem.exists(required)) {
 				Context.fatalError('Missing Discord Social SDK file: $required', Context.currentPos());
 			}
 		}
+		var runtimeDir = Path.join([libraryRoot(), "build", "native-runtime"]);
+		if (!FileSystem.exists(runtimeDir))
+			FileSystem.createDirectory(runtimeDir);
+		File.copy(runtimeSource, Path.join([runtimeDir, "discord.dll"]));
 
 		var sourceXml = xmlPath(source);
 		var includeXml = xmlPath(includeDir);
@@ -43,21 +48,26 @@ class NativeBuild {
 			+ '<target id="haxe">'
 			+ '<files id="hxdiscordsocial-native" />'
 			+ '<lib name="$importLibraryXml" if="windows" />'
+			+ '<lib name="delayimp.lib" if="windows" unless="mingw" />'
+			+ '<flag value="/DELAYLOAD:discord_partner_sdk.dll" if="windows" unless="mingw" />'
 			+ '</target>'
-			+ '<copyFile toolId="exe" name="discord_partner_sdk.dll" from="$runtimeDirXml" overwrite="true" if="windows" />';
+			+ '<copyFile toolId="exe" name="discord.dll" from="$runtimeDirXml" overwrite="true" if="windows" />';
 
 		Context.getLocalClass().get().meta.add(":buildXml", [macro $v{xml}], Context.currentPos());
 		return Context.getBuildFields();
 	}
 
 	static function resolved(path:String):String {
-		var macroFile = Path.normalize(FileSystem.fullPath(Context.resolvePath("hxdiscordsocial/internal/NativeBuild.hx")));
-		var libraryRoot = Path.directory(Path.directory(Path.directory(Path.directory(macroFile))));
-		var result = Path.normalize(Path.join([libraryRoot, path]));
+		var result = Path.normalize(Path.join([libraryRoot(), path]));
 		if (!FileSystem.exists(result)) {
 			Context.fatalError('Missing native source: $result', Context.currentPos());
 		}
 		return result;
+	}
+
+	static function libraryRoot():String {
+		var macroFile = Path.normalize(FileSystem.fullPath(Context.resolvePath("hxdiscordsocial/internal/NativeBuild.hx")));
+		return Path.directory(Path.directory(Path.directory(Path.directory(macroFile))));
 	}
 
 	static function xmlPath(value:String):String {
