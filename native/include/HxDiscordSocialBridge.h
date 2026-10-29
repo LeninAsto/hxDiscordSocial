@@ -82,3 +82,7 @@ HDS_EXPORT int hds_version_major();
 HDS_EXPORT int hds_version_minor();
 HDS_EXPORT int hds_version_patch();
 
+HDS_EXPORT bool hds_credential_write(const char* key, const char* value);
+HDS_EXPORT const char* hds_credential_read(const char* key);
+HDS_EXPORT bool hds_credential_delete(const char* key);
+

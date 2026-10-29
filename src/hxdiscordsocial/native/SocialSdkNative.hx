@@ -1,6 +1,6 @@
 package hxdiscordsocial.native;
 
-#if (cpp && windows && hxdiscordsocial_native)
+#if (cpp && (windows || android) && hxdiscordsocial_native)
 import cpp.ConstCharStar;
 import cpp.Int64;
 
@@ -67,5 +67,14 @@ extern class SocialSdkNative {
 
 	@:native("hds_version_patch")
 	public static function versionPatch():Int;
+
+	@:native("hds_credential_write")
+	public static function credentialWrite(key:ConstCharStar, value:ConstCharStar):Bool;
+
+	@:native("hds_credential_read")
+	public static function credentialRead(key:ConstCharStar):ConstCharStar;
+
+	@:native("hds_credential_delete")
+	public static function credentialDelete(key:ConstCharStar):Bool;
 }
 #end

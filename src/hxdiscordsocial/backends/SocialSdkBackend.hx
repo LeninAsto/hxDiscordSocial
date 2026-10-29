@@ -1,6 +1,6 @@
 package hxdiscordsocial.backends;
 
-#if (cpp && windows && hxdiscordsocial_native)
+#if (cpp && (windows || android) && hxdiscordsocial_native)
 import cpp.ConstCharStar;
 import hxdiscordsocial.DiscordCapabilities;
 import hxdiscordsocial.DiscordAuthToken;
@@ -13,7 +13,7 @@ import hxdiscordsocial.DiscordResult;
 import hxdiscordsocial.Presence;
 import hxdiscordsocial.native.SocialSdkNative;
 
-/** Windows x64 backend backed by Discord Social SDK's local RPC transport. */
+/** Native backend backed by the official Discord Social SDK. */
 class SocialSdkBackend implements DiscordBackend {
 	static inline final EVENT_READY = 1;
 	static inline final EVENT_UPDATED = 2;

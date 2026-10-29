@@ -5,6 +5,7 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -16,6 +17,8 @@
 #if defined(_WIN32) && !defined(__MINGW32__)
 #include <windows.h>
 #include <delayimp.h>
+#include <wincred.h>
+#pragma comment(lib, "Advapi32.lib")
 
 FARPROC WINAPI hxDiscordSocialDelayHook(unsigned notification,
                                         PDelayLoadInfo info) {
@@ -49,6 +52,7 @@ std::string g_last_error;
 std::mutex g_mutex;
 std::atomic<std::uint64_t> g_generation{0};
 std::uint64_t g_application_id = 0;
+std::string g_credential_value;
 
 void setLastError(std::string message) {
     std::lock_guard<std::mutex> lock(g_mutex);
@@ -89,6 +93,20 @@ std::uint64_t parseApplicationId(const char* value) {
 std::string resultMessage(discordpp::ClientResult const& result) {
     return result.Error().empty() ? result.ToString() : result.Error();
 }
+
+#if defined(_WIN32)
+std::wstring utf8ToWide(const char* value) {
+    if (value == nullptr || value[0] == '\0') return {};
+    const int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                         value, -1, nullptr, 0);
+    if (size <= 1) return {};
+    std::wstring result(static_cast<std::size_t>(size), L'\0');
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value, -1,
+                        result.data(), size);
+    result.pop_back();
+    return result;
+}
+#endif
 
 void fetchAuthenticatedUser(std::shared_ptr<discordpp::Client> client,
                             std::string accessToken,
@@ -514,5 +532,54 @@ int hds_version_minor() {
 
 int hds_version_patch() {
     return discordpp::Client::GetVersionPatch();
+}
+
+bool hds_credential_write(const char* key, const char* value) {
+#if defined(_WIN32)
+    const auto target = utf8ToWide(key);
+    if (target.empty() || value == nullptr || value[0] == '\0') return false;
+    const auto size = std::strlen(value);
+    if (size > CRED_MAX_CREDENTIAL_BLOB_SIZE) return false;
+    CREDENTIALW credential{};
+    credential.Type = CRED_TYPE_GENERIC;
+    credential.TargetName = const_cast<wchar_t*>(target.c_str());
+    credential.CredentialBlobSize = static_cast<DWORD>(size);
+    credential.CredentialBlob = reinterpret_cast<LPBYTE>(const_cast<char*>(value));
+    credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
+    credential.UserName = const_cast<wchar_t*>(L"hxDiscordSocial");
+    return CredWriteW(&credential, 0) == TRUE;
+#else
+    return false;
+#endif
+}
+
+const char* hds_credential_read(const char* key) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_credential_value.clear();
+#if defined(_WIN32)
+    const auto target = utf8ToWide(key);
+    if (target.empty()) return g_credential_value.c_str();
+    PCREDENTIALW credential = nullptr;
+    if (CredReadW(target.c_str(), CRED_TYPE_GENERIC, 0, &credential) != TRUE)
+        return g_credential_value.c_str();
+    if (credential->CredentialBlob != nullptr && credential->CredentialBlobSize > 0) {
+        g_credential_value.assign(
+          reinterpret_cast<const char*>(credential->CredentialBlob),
+          credential->CredentialBlobSize);
+    }
+    CredFree(credential);
+#endif
+    return g_credential_value.c_str();
+}
+
+bool hds_credential_delete(const char* key) {
+#if defined(_WIN32)
+    const auto target = utf8ToWide(key);
+    if (target.empty()) return false;
+    if (CredDeleteW(target.c_str(), CRED_TYPE_GENERIC, 0) == TRUE) return true;
+    return GetLastError() == ERROR_NOT_FOUND;
+#else
+    return false;
+#endif
 }
 

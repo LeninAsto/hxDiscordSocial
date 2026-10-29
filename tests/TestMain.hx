@@ -16,6 +16,7 @@ import hxdiscordsocial.PresenceButton;
 import hxdiscordsocial.PresenceParty;
 import hxdiscordsocial.PresenceBuilder;
 import hxdiscordsocial.StatusDisplayType;
+import hxdiscordsocial.SecureCredentialStore;
 import hxdiscordsocial.backends.FakeBackend;
 import hxdiscordsocial.backends.UnsupportedBackend;
 
@@ -27,6 +28,7 @@ class TestMain {
 		testModernPresenceModel();
 		testPresenceBuilder();
 		testAuthenticationLifecycle();
+		testSecureCredentialFallback();
 		testCapabilities();
 		testUnsupportedBackend();
 		testLifecycleAndInt64();
@@ -36,6 +38,16 @@ class TestMain {
 		testShutdownAndReinitialize();
 		testStaticFacade();
 		Sys.println('PASS: $assertions assertions');
+	}
+
+	static function testSecureCredentialFallback():Void {
+		#if !(cpp && windows && hxdiscordsocial_native)
+		assertTrue(!SecureCredentialStore.available(), "portable targets never claim secure storage");
+		assertTrue(!SecureCredentialStore.write("test", "secret"), "portable targets never write plaintext fallback");
+		assertEquals(null, SecureCredentialStore.read("test"), "portable targets return no stored secret");
+		#end
+		assertTrue(!SecureCredentialStore.write("", "secret"), "empty credential key rejected");
+		assertEquals(null, SecureCredentialStore.read(""), "empty credential key cannot be read");
 	}
 
 	static function testPresenceBuilder():Void {

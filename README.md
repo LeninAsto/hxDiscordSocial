@@ -6,21 +6,21 @@ any particular game engine.
 
 The library currently provides:
 
-- Rich Presence on Windows x64;
+- Rich Presence on Windows x64 and Android ARM64 (preview);
 - Discord OAuth2 authentication with PKCE;
 - access-token restoration and refresh;
 - a typed, backend-independent Haxe API;
 - main-thread event dispatch through `poll()`;
 - fake and unsupported backends for tests and portable builds.
 
-Android support is being developed separately. The public Haxe API is already
-platform-neutral, so applications do not need to replace their Presence model
-when another backend is added.
+The Android backend uses the same API as Windows. Android host projects still
+need to package Discord's AAR and initialize the real game Activity; see the
+[Android integration guide](docs/ANDROID.md).
 
 ## Requirements
 
 - Haxe 4.3 or newer;
-- hxcpp and a 64-bit MSVC toolchain;
+- hxcpp and either a 64-bit MSVC toolchain or Android NDK r27+;
 - Discord Social SDK 1.10 or newer;
 - a Discord application created in the Developer Portal.
 
@@ -99,6 +99,7 @@ never invoke user Haxe code directly.
 - [API and lifecycle](docs/API.md)
 - [Authentication](docs/AUTHENTICATION.md)
 - [Windows builds and distribution](docs/WINDOWS.md)
+- [Android ARM64 integration](docs/ANDROID.md)
 - [Security notes](docs/SECURITY.md)
 - [Native backend notes](native/windows/README.md)
 

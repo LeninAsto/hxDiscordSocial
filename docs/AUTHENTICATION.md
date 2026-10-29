@@ -6,7 +6,7 @@ identified Discord user or another authorized SDK service.
 
 ## Public-client flow
 
-The Windows backend performs this sequence:
+The native Windows and Android backends perform this sequence:
 
 1. generate a PKCE verifier and challenge;
 2. open Discord's authorization prompt;
@@ -16,8 +16,10 @@ The Windows backend performs this sequence:
 6. emit `AuthenticationReady`.
 
 Enable **Public Client** on the application's OAuth2 page before using this
-flow. It is useful for local tools and early integration work. Discord advises
-most shipped games to use a server-backed confidential-client flow instead.
+flow. Android applications must also register the redirect scheme described in
+the [Android guide](ANDROID.md). It is useful for local tools and early
+integration work. Discord advises most shipped games to use a server-backed
+confidential-client flow instead.
 
 ```haxe
 Discord.initialize(applicationId);
@@ -61,5 +63,17 @@ Use Windows Credential Manager on Windows and Keystore-backed storage on
 Android. Plain JSON, save files, registry strings and environment variables are
 not suitable for refresh tokens.
 
-The library deliberately does not write tokens to disk. Storage policy belongs
-to the host application and differs by platform and threat model.
+`SecureCredentialStore` is available to Windows native builds and uses Windows
+Credential Manager. It is opt-in: the authentication client never stores a
+token unless the host application asks it to. Unsupported platforms return
+`false`/`null` instead of silently falling back to a plaintext file.
+
+```haxe
+SecureCredentialStore.write("my-app/discord/refresh", token.refreshToken);
+var refresh = SecureCredentialStore.read("my-app/discord/refresh");
+SecureCredentialStore.remove("my-app/discord/refresh");
+```
+
+On Android, use an app-owned Keystore key (normally AES-GCM) and keep only the
+encrypted payload in private app storage. The core library deliberately does
+not import Lime or an Android framework wrapper just to persist credentials.

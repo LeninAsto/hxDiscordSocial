@@ -8,6 +8,12 @@ All notable changes to hxDiscordSocial will be documented here.
 - Added token restoration, refresh, logout and authenticated-user data.
 - Added typed authentication states and events dispatched through `poll()`.
 - Added `PresenceBuilder` with asset-key normalization.
+- Added opt-in Windows Credential Manager storage through
+  `SecureCredentialStore`.
+- Added an Android ARM64 native backend that consumes the official Social SDK
+  AAR without committing proprietary binaries.
+- Added Android host integration guidance for Activity initialization, OAuth
+  deep links, Prefab binaries, 16 KB pages and voice-permission removal.
 - Reworked documentation for general Haxe/hxcpp applications.
 
 ## 0.2.0 - 2026-10-29

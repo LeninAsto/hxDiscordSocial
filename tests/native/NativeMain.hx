@@ -7,6 +7,7 @@ import hxdiscordsocial.DiscordEvent;
 import hxdiscordsocial.Presence;
 import hxdiscordsocial.PresenceButton;
 import hxdiscordsocial.StatusDisplayType;
+import hxdiscordsocial.SecureCredentialStore;
 import hxdiscordsocial.backends.SocialSdkBackend;
 
 class NativeMain {
@@ -18,6 +19,13 @@ class NativeMain {
 		}
 
 		Sys.println('Discord Social SDK ${SocialSdkBackend.sdkVersion()}');
+		var credentialKey = "hxDiscordSocial/native-test";
+		if (!SecureCredentialStore.write(credentialKey, "unicode-secret-ñ")
+			|| SecureCredentialStore.read(credentialKey) != "unicode-secret-ñ"
+			|| !SecureCredentialStore.remove(credentialKey)) {
+			Sys.println("Windows Credential Manager round-trip failed");
+			Sys.exit(3);
+		}
 		var completed = false;
 		var failed = false;
 		var client = new DiscordClient();
@@ -35,10 +43,10 @@ class NativeMain {
 			name: "hxDiscordSocial",
 			statusDisplayType: StatusDisplayType.Details,
 			details: "hxDiscordSocial Haxe bridge",
-			detailsUrl: "https://github.com/LeninAsto/FNF-PlusEngine",
+			detailsUrl: "https://example.com",
 			state: "Validating typed events",
 			startTimestamp: Int64.fromFloat(Date.now().getTime() / 1000),
-			buttons: [new PresenceButton("Plus Engine", "https://github.com/LeninAsto/FNF-PlusEngine")],
+			buttons: [new PresenceButton("Project website", "https://example.com")],
 			supportedPlatforms: ActivityPlatform.Desktop
 		}));
 		var deadline = haxe.Timer.stamp() + 10;
