@@ -1,103 +1,117 @@
 # hxDiscordSocial
 
-`hxDiscordSocial` is a modern, backend-driven Discord integration for Haxe.
-Version 0.2.0 provides the portable API plus a tested Windows x64 backend for
-the official Discord Social SDK. The public API does not depend on Lime,
-OpenFL, Flixel or a particular engine.
+`hxDiscordSocial` is a Haxe wrapper for the official Discord Social SDK. It is
+designed for hxcpp applications and does not depend on Lime, OpenFL, Flixel or
+any particular game engine.
 
-## Current status
+The library currently provides:
 
-- Portable Haxe API: implemented and tested.
-- Fake backend: implemented for deterministic tests.
-- Unsupported backend: implemented; unsupported targets fail without crashing.
-- Windows x64 backend: implemented and tested against Discord Social SDK
-  1.10.19337.
-- Android ARM64 backend: planned for 0.3.0 after Windows is stable.
-- Future services (authentication, relationships, invites, lobbies, messages
-  and voice): represented by explicit capability flags and added as isolated
-  modules instead of bloating Rich Presence.
+- Rich Presence on Windows x64;
+- Discord OAuth2 authentication with PKCE;
+- access-token restoration and refresh;
+- a typed, backend-independent Haxe API;
+- main-thread event dispatch through `poll()`;
+- fake and unsupported backends for tests and portable builds.
 
-Discord's proprietary SDK, headers and binaries are deliberately not included
-in this repository. Future native builds will locate them through
-`DISCORD_SOCIAL_SDK_DIR`.
+Android support is being developed separately. The public Haxe API is already
+platform-neutral, so applications do not need to replace their Presence model
+when another backend is added.
 
-## Basic usage
+## Requirements
+
+- Haxe 4.3 or newer;
+- hxcpp and a 64-bit MSVC toolchain;
+- Discord Social SDK 1.10 or newer;
+- a Discord application created in the Developer Portal.
+
+The proprietary SDK is not part of this repository or Haxelib package. Point
+the native build to your local SDK copy:
+
+```powershell
+$env:DISCORD_SOCIAL_SDK_DIR = 'C:\path\to\discord_social_sdk'
+```
+
+## Rich Presence
 
 ```haxe
-import hxdiscordsocial.Discord;
+import haxe.Int64;
 import hxdiscordsocial.ActivityPlatform;
-import hxdiscordsocial.Presence;
+import hxdiscordsocial.Discord;
+import hxdiscordsocial.PresenceBuilder;
 import hxdiscordsocial.PresenceButton;
-import hxdiscordsocial.StatusDisplayType;
 
 Discord.addListener(event -> trace(event));
 Discord.initialize("123456789012345678");
-Discord.setPresence(new Presence({
-    name: "Plus Engine",
-    statusDisplayType: StatusDisplayType.Details,
-    details: "Playing: Blammed",
-    detailsUrl: "https://example.com/songs/blammed",
-    state: "Freeplay - Hard",
-    largeImage: "plusengine",
-    largeText: "FNF Plus Engine",
-    buttons: [new PresenceButton("Project page", "https://example.com")],
-    supportedPlatforms: ActivityPlatform.Desktop
-}));
 
-// Call from the application's main loop.
+var started = Int64.fromFloat(Date.now().getTime() / 1000);
+var presence = new PresenceBuilder()
+    .text("Exploring the northern ruins", "Chapter 3")
+    .largeAsset("northern_ruins", "The Northern Ruins")
+    .smallAsset("ranger", "Ranger")
+    .elapsedFrom(started)
+    .buttons([new PresenceButton("Game website", "https://example.com")])
+    .platforms(ActivityPlatform.Desktop)
+    .build();
+
+Discord.setPresence(presence);
+
+// Call from the normal update loop.
 Discord.poll();
-
-// Call during orderly application shutdown.
-Discord.shutdown();
-Discord.poll(); // Dispatches the Shutdown event.
 ```
 
-`initialize`, `setPresence` and `clearPresence` report local acceptance. Native
-confirmation is asynchronous and is delivered as a `DiscordEvent` from
-`poll()`. Listeners are never invoked directly by a native callback thread.
+Asset keys are normalized to lowercase by `PresenceBuilder`. Images referenced
+by key must be uploaded under **Rich Presence → Art Assets** in the Discord
+Developer Portal. HTTPS image URLs are accepted without modification.
 
-The Presence model covers current Social SDK activity fields: activity and
-status-display types, clickable details/state/assets, large and small assets,
-invite cover, 64-bit timestamps, two buttons, party metadata/privacy, join
-secret and supported-platform flags.
+## Authentication
 
-Check a feature before using an optional service:
+Authentication is optional and is not required for local Rich Presence. For a
+public-client prototype, enable **Public Client** in the Discord Developer
+Portal and start the PKCE flow after initialization:
 
 ```haxe
-if (Discord.capabilities.supports(RichPresence)) {
-    Discord.setPresence(presence);
-}
+Discord.addListener(event -> switch (event) {
+    case Authenticated(token):
+        saveSecurely(token.accessToken, token.refreshToken);
+    case AuthenticationReady(user):
+        trace('Signed in as ${user.displayName} (${user.id})');
+    case TokenRefreshRequired:
+        Discord.refreshToken(loadRefreshTokenSecurely());
+    case Error(operation, error):
+        trace('$operation failed: $error');
+    default:
+});
+
+Discord.authorize();
 ```
 
-## Windows native build
+Do not include a Discord client secret in a desktop or mobile executable. A
+production confidential-client flow must exchange and refresh tokens on your
+own server. Discord authentication identifies the player; it does not provide
+cloud storage for application settings.
 
-Download the Discord Social SDK separately and point the build at it:
+Methods return `Accepted` when a request passes local validation. Native
+completion arrives later as a `DiscordEvent` during `poll()`. Native callbacks
+never invoke user Haxe code directly.
+
+## Documentation
+
+- [API and lifecycle](docs/API.md)
+- [Authentication](docs/AUTHENTICATION.md)
+- [Windows builds and distribution](docs/WINDOWS.md)
+- [Security notes](docs/SECURITY.md)
+- [Native backend notes](native/windows/README.md)
+
+## Tests
 
 ```powershell
+haxe tests.hxml
+
 $env:DISCORD_SOCIAL_SDK_DIR = 'C:\path\to\discord_social_sdk'
 haxe native-tests.hxml
 ```
 
-The build uses C++20 and copies the required runtime DLL beside the generated
-executable. SDK headers, libraries, AARs and DLLs remain outside this Git
-repository.
+## License
 
-## Testing
-
-Run from the repository root:
-
-```text
-haxe tests.hxml
-```
-
-The suite has no third-party test dependency and runs through the Haxe
-interpreter.
-
-## Roadmap
-
-Android ARM64 follows through the official AAR and Prefab. Once Presence is
-stable on both targets, authentication, relationships, invitations, lobbies,
-direct messages, voice and linked channels will be implemented as separate
-services with capability checks. See `native/` for platform prerequisites and
-acceptance checks.
-
+The Haxe wrapper and bridge code use the MIT license. Discord Social SDK files
+remain subject to Discord's own terms.

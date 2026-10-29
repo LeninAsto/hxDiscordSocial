@@ -1,22 +1,21 @@
 package;
 
 import hxdiscordsocial.DiscordClient;
-import hxdiscordsocial.Presence;
+import hxdiscordsocial.PresenceBuilder;
 import hxdiscordsocial.backends.FakeBackend;
 
 class Main {
 	static function main():Void {
-		// FakeBackend keeps this example runnable before the native 0.2.0 backend.
+		// FakeBackend makes the example runnable without Discord or the native SDK.
 		var discord = new DiscordClient(new FakeBackend());
 		discord.addListener(event -> trace(event));
 		discord.initialize("123456789012345678");
 		discord.poll();
-		discord.setPresence(new Presence({
-			details: "Playing: Blammed",
-			state: "Freeplay - Hard",
-			largeImage: "plusengine",
-			largeText: "FNF Plus Engine"
-		}));
+		discord.setPresence(new PresenceBuilder()
+			.text("Exploring the northern ruins", "Chapter 3")
+			.largeAsset("northern_ruins", "The Northern Ruins")
+			.smallAsset("ranger", "Ranger")
+			.build());
 		discord.poll();
 		discord.shutdown();
 		discord.poll();

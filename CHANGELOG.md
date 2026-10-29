@@ -2,6 +2,14 @@
 
 All notable changes to hxDiscordSocial will be documented here.
 
+## Unreleased
+
+- Added OAuth2 authorization with SDK-generated PKCE.
+- Added token restoration, refresh, logout and authenticated-user data.
+- Added typed authentication states and events dispatched through `poll()`.
+- Added `PresenceBuilder` with asset-key normalization.
+- Reworked documentation for general Haxe/hxcpp applications.
+
 ## 0.2.0 - 2026-10-29
 
 - Added a Windows x64 bridge for Discord Social SDK 1.10+.
