@@ -51,7 +51,9 @@ class NativeBuild {
 	}
 
 	static function resolved(path:String):String {
-		var result = Path.normalize(FileSystem.fullPath(Context.resolvePath(path)));
+		var macroFile = Path.normalize(FileSystem.fullPath(Context.resolvePath("hxdiscordsocial/internal/NativeBuild.hx")));
+		var libraryRoot = Path.directory(Path.directory(Path.directory(Path.directory(macroFile))));
+		var result = Path.normalize(Path.join([libraryRoot, path]));
 		if (!FileSystem.exists(result)) {
 			Context.fatalError('Missing native source: $result', Context.currentPos());
 		}
