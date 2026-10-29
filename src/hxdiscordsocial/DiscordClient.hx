@@ -12,6 +12,9 @@ class DiscordClient {
 	public var applicationId(default, null):Null<String>;
 	public var desiredPresence(default, null):Null<Presence>;
 	public var capabilities(get, never):DiscordCapabilities;
+	public var authState(default, null):DiscordAuthState = SignedOut;
+	public var currentUser(default, null):Null<DiscordUser>;
+	public var authToken(default, null):Null<DiscordAuthToken>;
 
 	final backend:DiscordBackend;
 	final listeners:Array<DiscordEventListener> = [];
@@ -87,6 +90,41 @@ class DiscordClient {
 		return Accepted;
 	}
 
+	/** Starts Discord OAuth with PKCE. Public Client must be enabled in Developer Portal. */
+	public function authorize(?scopes:String):DiscordResult {
+		if (!capabilities.authentication)
+			return reject(Authorize, new DiscordError(UnsupportedPlatform, "Authentication is not supported by this backend"));
+		if (!canAcceptDesiredState()) return reject(Authorize, stateError());
+		authState = Authorizing;
+		var result = backend.authorize(scopes == null ? "" : scopes);
+		if (!DiscordResultTools.isAccepted(result)) queueRejected(Authorize, result);
+		return result;
+	}
+
+	/** Restores a securely stored OAuth access token and connects the Social SDK. */
+	public function restoreToken(accessToken:String):DiscordResult {
+		if (accessToken == null || StringTools.trim(accessToken).length == 0)
+			return reject(RestoreToken, new DiscordError(InvalidState, "Access token cannot be empty"));
+		authState = Connecting;
+		var result = backend.restoreToken(accessToken);
+		if (!DiscordResultTools.isAccepted(result)) queueRejected(RestoreToken, result);
+		return result;
+	}
+
+	public function refreshToken(refreshToken:String):DiscordResult {
+		if (refreshToken == null || StringTools.trim(refreshToken).length == 0)
+			return reject(RefreshToken, new DiscordError(InvalidState, "Refresh token cannot be empty"));
+		var result = backend.refreshToken(refreshToken);
+		if (!DiscordResultTools.isAccepted(result)) queueRejected(RefreshToken, result);
+		return result;
+	}
+
+	public function logout():DiscordResult {
+		var result = backend.logout();
+		if (!DiscordResultTools.isAccepted(result)) queueRejected(Logout, result);
+		return result;
+	}
+
 	public function changeApplication(applicationId:String):DiscordResult {
 		var validation = validateApplicationId(applicationId, ChangeApplication);
 		if (validation != null)
@@ -97,6 +135,9 @@ class DiscordClient {
 		backend.shutdown();
 		pending = null;
 		hasAppliedPresence = false;
+		authState = SignedOut;
+		currentUser = null;
+		authToken = null;
 		appliedPresence = null;
 		this.applicationId = applicationId;
 		state = Initializing;
@@ -163,6 +204,25 @@ class DiscordClient {
 				appliedPresence = null;
 				pumpDesiredState();
 
+			case AuthorizationStarted:
+				authState = Authorizing;
+
+			case Authenticated(token):
+				authToken = token;
+				authState = Authenticated;
+
+			case AuthenticationReady(user):
+				currentUser = user;
+				authState = Ready;
+
+			case TokenRefreshRequired:
+				authState = RefreshRequired;
+
+			case LoggedOut:
+				authState = SignedOut;
+				currentUser = null;
+				authToken = null;
+
 			case Disconnected(_):
 				state = Degraded;
 				pending = null;
@@ -172,6 +232,8 @@ class DiscordClient {
 			case Error(operation, _):
 				if (operation == SetPresence || operation == ClearPresence)
 					pending = null;
+				if (operation == Authorize || operation == RestoreToken || operation == RefreshToken)
+					authState = SignedOut;
 
 			case Shutdown:
 				state = Closed;

@@ -6,6 +6,10 @@ enum DiscordOperation {
 	SetPresence;
 	ClearPresence;
 	ChangeApplication;
+	Authorize;
+	RestoreToken;
+	RefreshToken;
+	Logout;
 	Poll;
 	Shutdown;
 }

@@ -30,6 +30,11 @@ class UnsupportedBackend implements DiscordBackend {
 		return Rejected(unsupportedError());
 	}
 
+	public function authorize(scopes:String):DiscordResult return Rejected(unsupportedError());
+	public function restoreToken(accessToken:String):DiscordResult return Rejected(unsupportedError());
+	public function refreshToken(refreshToken:String):DiscordResult return Rejected(unsupportedError());
+	public function logout():DiscordResult return Rejected(unsupportedError());
+
 	public function poll():Array<DiscordEvent> {
 		return [];
 	}

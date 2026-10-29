@@ -14,6 +14,7 @@ import hxdiscordsocial.PartyPrivacy;
 import hxdiscordsocial.Presence;
 import hxdiscordsocial.PresenceButton;
 import hxdiscordsocial.PresenceParty;
+import hxdiscordsocial.PresenceBuilder;
 import hxdiscordsocial.StatusDisplayType;
 import hxdiscordsocial.backends.FakeBackend;
 import hxdiscordsocial.backends.UnsupportedBackend;
@@ -24,6 +25,8 @@ class TestMain {
 	static function main():Void {
 		testApplicationIdValidation();
 		testModernPresenceModel();
+		testPresenceBuilder();
+		testAuthenticationLifecycle();
 		testCapabilities();
 		testUnsupportedBackend();
 		testLifecycleAndInt64();
@@ -33,6 +36,42 @@ class TestMain {
 		testShutdownAndReinitialize();
 		testStaticFacade();
 		Sys.println('PASS: $assertions assertions');
+	}
+
+	static function testPresenceBuilder():Void {
+		var presence = new PresenceBuilder()
+			.identity(" Test Game ")
+			.text("Playing a song", "Hard")
+			.largeAsset("MY_ICON", "Game icon", "https://example.com")
+			.smallAsset("BF", "Boyfriend")
+			.buttons([new PresenceButton("Website", "https://example.com")])
+			.platforms(ActivityPlatform.Desktop | ActivityPlatform.Android)
+			.build();
+		assertEquals("Test Game", presence.name, "builder trims identity");
+		assertEquals("my_icon", presence.largeImage, "builder normalizes asset keys");
+		assertEquals("bf", presence.smallImage, "builder normalizes small asset key");
+		assertEquals(StatusDisplayType.Details, presence.statusDisplayType, "builder chooses useful compact status");
+	}
+
+	static function testAuthenticationLifecycle():Void {
+		var backend = new FakeBackend();
+		var client = new DiscordClient(backend);
+		client.initialize("123");
+		client.poll();
+		assertAccepted(client.authorize());
+		client.poll();
+		assertEquals(hxdiscordsocial.DiscordAuthState.Authorizing, client.authState, "authorization enters pending state");
+		assertAccepted(client.refreshToken("refresh"));
+		client.poll();
+		assertEquals(hxdiscordsocial.DiscordAuthState.Authenticated, client.authState, "token result becomes authenticated");
+		assertTrue(client.authToken != null, "token result retained for secure application storage");
+		assertAccepted(client.restoreToken("access"));
+		client.poll();
+		assertEquals(hxdiscordsocial.DiscordAuthState.Ready, client.authState, "restored token resolves user");
+		assertEquals("Fake User", client.currentUser.displayName, "authenticated user exposed");
+		assertAccepted(client.logout());
+		client.poll();
+		assertEquals(hxdiscordsocial.DiscordAuthState.SignedOut, client.authState, "logout clears auth state");
 	}
 
 	static function testModernPresenceModel():Void {

@@ -29,7 +29,7 @@ class FakeBackend implements DiscordBackend {
 	}
 
 	public function capabilities():DiscordCapabilities {
-		return DiscordCapabilities.presenceOnly();
+		return DiscordCapabilities.presenceAndAuthentication();
 	}
 
 	public function initialize(applicationId:String):DiscordResult {
@@ -60,6 +60,29 @@ class FakeBackend implements DiscordBackend {
 		pending.push(Clear);
 		if (autoComplete)
 			completeNextSuccess();
+		return Accepted;
+	}
+
+	public function authorize(scopes:String):DiscordResult {
+		if (!initialized) return Rejected(new DiscordError(InvalidState, "Fake backend is not initialized"));
+		events.push(AuthorizationStarted);
+		return Accepted;
+	}
+
+	public function restoreToken(accessToken:String):DiscordResult {
+		if (!initialized) return Rejected(new DiscordError(InvalidState, "Fake backend is not initialized"));
+		events.push(AuthenticationReady(new DiscordUser("1", "Fake User")));
+		return Accepted;
+	}
+
+	public function refreshToken(refreshToken:String):DiscordResult {
+		if (!initialized) return Rejected(new DiscordError(InvalidState, "Fake backend is not initialized"));
+		events.push(Authenticated(new DiscordAuthToken("fake-access", "fake-refresh", 604800, "openid")));
+		return Accepted;
+	}
+
+	public function logout():DiscordResult {
+		events.push(LoggedOut);
 		return Accepted;
 	}
 

@@ -3,6 +3,7 @@
 #include "HxDiscordSocialBridge.h"
 
 #include <atomic>
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -37,6 +38,8 @@ struct BridgeEvent {
     int operation = HDS_OPERATION_NONE;
     std::string message;
     bool retryable = false;
+    std::array<std::string, 4> data;
+    int number = 0;
 };
 
 std::shared_ptr<discordpp::Client> g_client;
@@ -45,6 +48,7 @@ BridgeEvent g_current_event;
 std::string g_last_error;
 std::mutex g_mutex;
 std::atomic<std::uint64_t> g_generation{0};
+std::uint64_t g_application_id = 0;
 
 void setLastError(std::string message) {
     std::lock_guard<std::mutex> lock(g_mutex);
@@ -54,9 +58,12 @@ void setLastError(std::string message) {
 void pushEvent(int type,
                int operation = HDS_OPERATION_NONE,
                std::string message = {},
-               bool retryable = false) {
+               bool retryable = false,
+               std::array<std::string, 4> data = {},
+               int number = 0) {
     std::lock_guard<std::mutex> lock(g_mutex);
-    g_events.push_back({type, operation, std::move(message), retryable});
+    g_events.push_back({type, operation, std::move(message), retryable,
+                        std::move(data), number});
 }
 
 std::optional<std::string> optionalString(const char* value) {
@@ -78,6 +85,49 @@ std::uint64_t parseApplicationId(const char* value) {
     }
     return result;
 }
+
+std::string resultMessage(discordpp::ClientResult const& result) {
+    return result.Error().empty() ? result.ToString() : result.Error();
+}
+
+void fetchAuthenticatedUser(std::shared_ptr<discordpp::Client> client,
+                            std::string accessToken,
+                            std::uint64_t generation) {
+    client->FetchCurrentUser(
+      discordpp::AuthorizationTokenType::Bearer,
+      accessToken,
+      [generation](discordpp::ClientResult result, std::uint64_t id,
+                   std::string name) {
+          if (generation != g_generation.load()) return;
+          if (!result.Successful()) {
+              const auto message = resultMessage(result);
+              pushEvent(HDS_EVENT_ERROR, HDS_OPERATION_RESTORE_TOKEN,
+                        message, result.Retryable());
+              return;
+          }
+          pushEvent(HDS_EVENT_AUTH_READY, HDS_OPERATION_RESTORE_TOKEN, {},
+                    false, {std::to_string(id), std::move(name), {}, {}});
+      });
+}
+
+void applyAccessToken(std::shared_ptr<discordpp::Client> client,
+                      std::string accessToken,
+                      std::uint64_t generation) {
+    client->UpdateToken(
+      discordpp::AuthorizationTokenType::Bearer,
+      accessToken,
+      [client, accessToken, generation](discordpp::ClientResult result) {
+          if (generation != g_generation.load()) return;
+          if (!result.Successful()) {
+              const auto message = resultMessage(result);
+              pushEvent(HDS_EVENT_ERROR, HDS_OPERATION_RESTORE_TOKEN,
+                        message, result.Retryable());
+              return;
+          }
+          fetchAuthenticatedUser(client, accessToken, generation);
+          client->Connect();
+      });
+}
 }
 
 bool hds_initialize(const char* application_id) {
@@ -98,6 +148,12 @@ bool hds_initialize(const char* application_id) {
           },
           discordpp::LoggingSeverity::Error);
         client->SetApplicationId(id);
+        client->SetTokenExpirationCallback([generation]() {
+            if (generation == g_generation.load())
+                pushEvent(HDS_EVENT_TOKEN_EXPIRING,
+                          HDS_OPERATION_REFRESH_TOKEN);
+        });
+        g_application_id = id;
         g_client = std::move(client);
         setLastError({});
         pushEvent(HDS_EVENT_READY, HDS_OPERATION_INITIALIZE);
@@ -284,6 +340,92 @@ bool hds_clear_presence() {
     }
 }
 
+bool hds_authorize(const char* scopes) {
+    if (!g_client) { setLastError("Discord SDK is not initialized"); return false; }
+    try {
+        const auto generation = g_generation.load();
+        auto client = g_client;
+        auto verifier = client->CreateAuthorizationCodeVerifier();
+        discordpp::AuthorizationArgs args;
+        args.SetClientId(g_application_id);
+        const auto requested = optionalString(scopes);
+        args.SetScopes(requested ? *requested : discordpp::Client::GetDefaultPresenceScopes());
+        args.SetCodeChallenge(verifier.Challenge());
+        pushEvent(HDS_EVENT_AUTHORIZATION_STARTED, HDS_OPERATION_AUTHORIZE);
+        client->Authorize(std::move(args),
+          [client, verifier, generation](discordpp::ClientResult result,
+                                        std::string code,
+                                        std::string redirectUri) mutable {
+            if (generation != g_generation.load()) return;
+            if (!result.Successful()) {
+                const auto message = resultMessage(result);
+                pushEvent(HDS_EVENT_ERROR, HDS_OPERATION_AUTHORIZE,
+                          message, result.Retryable());
+                return;
+            }
+            client->GetToken(g_application_id, code, verifier.Verifier(), redirectUri,
+              [client, generation](discordpp::ClientResult tokenResult,
+                                   std::string accessToken,
+                                   std::string refreshToken,
+                                   discordpp::AuthorizationTokenType,
+                                   std::int32_t expiresIn,
+                                   std::string tokenScopes) {
+                if (generation != g_generation.load()) return;
+                if (!tokenResult.Successful()) {
+                    const auto message = resultMessage(tokenResult);
+                    pushEvent(HDS_EVENT_ERROR, HDS_OPERATION_AUTHORIZE,
+                              message, tokenResult.Retryable());
+                    return;
+                }
+                pushEvent(HDS_EVENT_AUTHENTICATED, HDS_OPERATION_AUTHORIZE, {}, false,
+                          {accessToken, std::move(refreshToken),
+                           std::move(tokenScopes), {}}, expiresIn);
+                applyAccessToken(client, std::move(accessToken), generation);
+              });
+          });
+        return true;
+    } catch (const std::exception& error) { setLastError(error.what()); return false; }
+}
+
+bool hds_restore_token(const char* access_token) {
+    if (!g_client) { setLastError("Discord SDK is not initialized"); return false; }
+    const auto token = optionalString(access_token);
+    if (!token) { setLastError("Access token is empty"); return false; }
+    applyAccessToken(g_client, *token, g_generation.load());
+    return true;
+}
+
+bool hds_refresh_token(const char* refresh_token) {
+    if (!g_client) { setLastError("Discord SDK is not initialized"); return false; }
+    const auto token = optionalString(refresh_token);
+    if (!token) { setLastError("Refresh token is empty"); return false; }
+    const auto generation = g_generation.load();
+    auto client = g_client;
+    client->RefreshToken(g_application_id, *token,
+      [client, generation](discordpp::ClientResult result, std::string accessToken,
+                           std::string refreshToken, discordpp::AuthorizationTokenType,
+                           std::int32_t expiresIn, std::string scopes) {
+        if (generation != g_generation.load()) return;
+        if (!result.Successful()) {
+            const auto message = resultMessage(result);
+            pushEvent(HDS_EVENT_ERROR, HDS_OPERATION_REFRESH_TOKEN,
+                      message, result.Retryable());
+            return;
+        }
+        pushEvent(HDS_EVENT_AUTHENTICATED, HDS_OPERATION_REFRESH_TOKEN, {}, false,
+                  {accessToken, std::move(refreshToken), std::move(scopes), {}}, expiresIn);
+        applyAccessToken(client, std::move(accessToken), generation);
+      });
+    return true;
+}
+
+bool hds_logout() {
+    if (!g_client) { setLastError("Discord SDK is not initialized"); return false; }
+    g_client->Disconnect();
+    pushEvent(HDS_EVENT_LOGGED_OUT, HDS_OPERATION_LOGOUT);
+    return true;
+}
+
 void hds_run_callbacks() {
     if (!g_client) {
         return;
@@ -344,6 +486,17 @@ const char* hds_event_message() {
 bool hds_event_retryable() {
     std::lock_guard<std::mutex> lock(g_mutex);
     return g_current_event.retryable;
+}
+
+const char* hds_event_data(int index) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (index < 0 || index >= static_cast<int>(g_current_event.data.size())) return "";
+    return g_current_event.data[static_cast<std::size_t>(index)].c_str();
+}
+
+int hds_event_number() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return g_current_event.number;
 }
 
 const char* hds_last_error() {

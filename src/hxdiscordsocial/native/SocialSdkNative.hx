@@ -20,6 +20,18 @@ extern class SocialSdkNative {
 	@:native("hds_clear_presence")
 	public static function clearPresence():Bool;
 
+	@:native("hds_authorize")
+	public static function authorize(scopes:ConstCharStar):Bool;
+
+	@:native("hds_restore_token")
+	public static function restoreToken(accessToken:ConstCharStar):Bool;
+
+	@:native("hds_refresh_token")
+	public static function refreshToken(refreshToken:ConstCharStar):Bool;
+
+	@:native("hds_logout")
+	public static function logout():Bool;
+
 	@:native("hds_run_callbacks")
 	public static function runCallbacks():Void;
 
@@ -37,6 +49,12 @@ extern class SocialSdkNative {
 
 	@:native("hds_event_retryable")
 	public static function eventRetryable():Bool;
+
+	@:native("hds_event_data")
+	public static function eventData(index:Int):ConstCharStar;
+
+	@:native("hds_event_number")
+	public static function eventNumber():Int;
 
 	@:native("hds_last_error")
 	public static function lastError():ConstCharStar;

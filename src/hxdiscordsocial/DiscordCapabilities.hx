@@ -44,4 +44,8 @@ class DiscordCapabilities {
 	public static inline function presenceOnly():DiscordCapabilities {
 		return new DiscordCapabilities(true);
 	}
+
+	public static inline function presenceAndAuthentication():DiscordCapabilities {
+		return new DiscordCapabilities(true, true);
+	}
 }

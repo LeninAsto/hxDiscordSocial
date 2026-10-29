@@ -3,6 +3,8 @@ package hxdiscordsocial.backends;
 #if (cpp && windows && hxdiscordsocial_native)
 import cpp.ConstCharStar;
 import hxdiscordsocial.DiscordCapabilities;
+import hxdiscordsocial.DiscordAuthToken;
+import hxdiscordsocial.DiscordUser;
 import hxdiscordsocial.DiscordBackend;
 import hxdiscordsocial.DiscordError;
 import hxdiscordsocial.DiscordEvent;
@@ -18,10 +20,19 @@ class SocialSdkBackend implements DiscordBackend {
 	static inline final EVENT_CLEARED = 3;
 	static inline final EVENT_DISCONNECTED = 4;
 	static inline final EVENT_ERROR = 5;
+	static inline final EVENT_AUTHORIZATION_STARTED = 6;
+	static inline final EVENT_AUTHENTICATED = 7;
+	static inline final EVENT_AUTH_READY = 8;
+	static inline final EVENT_TOKEN_EXPIRING = 9;
+	static inline final EVENT_LOGGED_OUT = 10;
 
 	static inline final OP_INITIALIZE = 1;
 	static inline final OP_SET_PRESENCE = 2;
 	static inline final OP_CLEAR_PRESENCE = 3;
+	static inline final OP_AUTHORIZE = 4;
+	static inline final OP_RESTORE_TOKEN = 5;
+	static inline final OP_REFRESH_TOKEN = 6;
+	static inline final OP_LOGOUT = 7;
 
 	var applicationId:Null<String>;
 	var pendingPresence:Null<Presence>;
@@ -29,7 +40,7 @@ class SocialSdkBackend implements DiscordBackend {
 	public function new() {}
 
 	public function capabilities():DiscordCapabilities {
-		return DiscordCapabilities.presenceOnly();
+		return DiscordCapabilities.presenceAndAuthentication();
 	}
 
 	public function initialize(applicationId:String):DiscordResult {
@@ -70,6 +81,22 @@ class SocialSdkBackend implements DiscordBackend {
 		return Accepted;
 	}
 
+	public function authorize(scopes:String):DiscordResult {
+		return nativeResult(SocialSdkNative.authorize(value(scopes)), Authorize);
+	}
+
+	public function restoreToken(accessToken:String):DiscordResult {
+		return nativeResult(SocialSdkNative.restoreToken(value(accessToken)), RestoreToken);
+	}
+
+	public function refreshToken(refreshToken:String):DiscordResult {
+		return nativeResult(SocialSdkNative.refreshToken(value(refreshToken)), RefreshToken);
+	}
+
+	public function logout():DiscordResult {
+		return nativeResult(SocialSdkNative.logout(), Logout);
+	}
+
 	public function poll():Array<DiscordEvent> {
 		SocialSdkNative.runCallbacks();
 		var events:Array<DiscordEvent> = [];
@@ -89,6 +116,16 @@ class SocialSdkBackend implements DiscordBackend {
 					events.push(Disconnected(eventError()));
 				case EVENT_ERROR:
 					events.push(Error(eventOperation(), eventError()));
+				case EVENT_AUTHORIZATION_STARTED:
+					events.push(AuthorizationStarted);
+				case EVENT_AUTHENTICATED:
+					events.push(Authenticated(new DiscordAuthToken(eventData(0), eventData(1), SocialSdkNative.eventNumber(), eventData(2))));
+				case EVENT_AUTH_READY:
+					events.push(AuthenticationReady(new DiscordUser(eventData(0), eventData(1))));
+				case EVENT_TOKEN_EXPIRING:
+					events.push(TokenRefreshRequired);
+				case EVENT_LOGGED_OUT:
+					events.push(LoggedOut);
 				default:
 					events.push(Error(Poll, new DiscordError(BackendFailure, 'Unknown native event $eventType')));
 			}
@@ -122,6 +159,14 @@ class SocialSdkBackend implements DiscordBackend {
 		return Rejected(new DiscordError(BackendFailure, message, retryable));
 	}
 
+	static function nativeResult(success:Bool, operation:DiscordOperation):DiscordResult {
+		return success ? Accepted : nativeFailure(operation == Authorize || operation == RefreshToken);
+	}
+
+	static inline function eventData(index:Int):String {
+		return nativeString(SocialSdkNative.eventData(index));
+	}
+
 	static function eventError():DiscordError {
 		var message = nativeString(SocialSdkNative.eventMessage());
 		if (message.length == 0) {
@@ -135,6 +180,10 @@ class SocialSdkBackend implements DiscordBackend {
 			case OP_INITIALIZE: Initialize;
 			case OP_SET_PRESENCE: SetPresence;
 			case OP_CLEAR_PRESENCE: ClearPresence;
+			case OP_AUTHORIZE: Authorize;
+			case OP_RESTORE_TOKEN: RestoreToken;
+			case OP_REFRESH_TOKEN: RefreshToken;
+			case OP_LOGOUT: Logout;
 			default: Poll;
 		};
 	}

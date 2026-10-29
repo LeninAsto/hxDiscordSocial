@@ -8,6 +8,9 @@ class Discord {
 	public static var applicationId(get, never):Null<String>;
 	public static var desiredPresence(get, never):Null<Presence>;
 	public static var capabilities(get, never):DiscordCapabilities;
+	public static var authState(get, never):DiscordAuthState;
+	public static var currentUser(get, never):Null<DiscordUser>;
+	public static var authToken(get, never):Null<DiscordAuthToken>;
 
 	public static function useClient(value:DiscordClient):Void {
 		if (value == null)
@@ -26,6 +29,11 @@ class Discord {
 
 	public static inline function changeApplication(applicationId:String):DiscordResult
 		return client.changeApplication(applicationId);
+
+	public static inline function authorize(?scopes:String):DiscordResult return client.authorize(scopes);
+	public static inline function restoreToken(accessToken:String):DiscordResult return client.restoreToken(accessToken);
+	public static inline function refreshToken(refreshToken:String):DiscordResult return client.refreshToken(refreshToken);
+	public static inline function logout():DiscordResult return client.logout();
 
 	public static inline function poll():Void
 		client.poll();
@@ -50,4 +58,8 @@ class Discord {
 
 	static inline function get_capabilities():DiscordCapabilities
 		return client.capabilities;
+
+	static inline function get_authState():DiscordAuthState return client.authState;
+	static inline function get_currentUser():Null<DiscordUser> return client.currentUser;
+	static inline function get_authToken():Null<DiscordAuthToken> return client.authToken;
 }

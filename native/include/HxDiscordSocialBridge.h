@@ -15,6 +15,11 @@ enum HdsEventType {
     HDS_EVENT_PRESENCE_CLEARED = 3,
     HDS_EVENT_DISCONNECTED = 4,
     HDS_EVENT_ERROR = 5,
+    HDS_EVENT_AUTHORIZATION_STARTED = 6,
+    HDS_EVENT_AUTHENTICATED = 7,
+    HDS_EVENT_AUTH_READY = 8,
+    HDS_EVENT_TOKEN_EXPIRING = 9,
+    HDS_EVENT_LOGGED_OUT = 10,
 };
 
 enum HdsOperation {
@@ -22,6 +27,10 @@ enum HdsOperation {
     HDS_OPERATION_INITIALIZE = 1,
     HDS_OPERATION_SET_PRESENCE = 2,
     HDS_OPERATION_CLEAR_PRESENCE = 3,
+    HDS_OPERATION_AUTHORIZE = 4,
+    HDS_OPERATION_RESTORE_TOKEN = 5,
+    HDS_OPERATION_REFRESH_TOKEN = 6,
+    HDS_OPERATION_LOGOUT = 7,
 };
 
 HDS_EXPORT bool hds_initialize(const char* application_id);
@@ -54,6 +63,10 @@ HDS_EXPORT bool hds_set_presence(const char* name,
                                  const char* join_secret,
                                  int supported_platforms);
 HDS_EXPORT bool hds_clear_presence();
+HDS_EXPORT bool hds_authorize(const char* scopes);
+HDS_EXPORT bool hds_restore_token(const char* access_token);
+HDS_EXPORT bool hds_refresh_token(const char* refresh_token);
+HDS_EXPORT bool hds_logout();
 HDS_EXPORT void hds_run_callbacks();
 HDS_EXPORT void hds_shutdown();
 
@@ -61,6 +74,8 @@ HDS_EXPORT int hds_pop_event();
 HDS_EXPORT int hds_event_operation();
 HDS_EXPORT const char* hds_event_message();
 HDS_EXPORT bool hds_event_retryable();
+HDS_EXPORT const char* hds_event_data(int index);
+HDS_EXPORT int hds_event_number();
 HDS_EXPORT const char* hds_last_error();
 
 HDS_EXPORT int hds_version_major();
